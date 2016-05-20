@@ -21,6 +21,8 @@ namespace ValveResourceFormat.ResourceTypes
 
         public ushort Height { get; private set; }
 
+        public ushort TrueHeight { get; private set; }
+
         public ushort Depth { get; private set; }
 
         public float[] Reflectivity { get; private set; }
@@ -65,6 +67,7 @@ namespace ValveResourceFormat.ResourceTypes
             };
             Width = reader.ReadUInt16();
             Height = reader.ReadUInt16();
+            TrueHeight = Height; // This might be overwritten when we look at the extra data
             Depth = reader.ReadUInt16();
             Format = (VTexFormat)reader.ReadByte();
             NumMipLevels = reader.ReadByte();
@@ -90,6 +93,14 @@ namespace ValveResourceFormat.ResourceTypes
                     ExtraData.Add((VTexExtraData)type, reader.ReadBytes((int)size));
 
                     reader.BaseStream.Position = prevOffset;
+
+                    if (type == 3)
+                    {
+                        TrueHeight = (ushort) (ExtraData[(VTexExtraData)type][4]
+                            + (ExtraData[(VTexExtraData)type][5] << 8)
+                            + (ExtraData[(VTexExtraData)type][6] << 16)
+                            + (ExtraData[(VTexExtraData)type][7] << 24));
+                    }
                 }
             }
 
@@ -143,7 +154,10 @@ namespace ValveResourceFormat.ResourceTypes
                             }
                         }
 
-                        return DDSImage.UncompressDXT1(Reader, Width, Height);
+                        Bitmap decompressed=DDSImage.UncompressDXT1(Reader, Width, Height);
+
+                        if (TrueHeight == Height) return decompressed;
+                        else return decompressed.Clone(new Rectangle(0, 0, Width, TrueHeight), decompressed.PixelFormat);
                     }
 
                     break;
@@ -183,7 +197,9 @@ namespace ValveResourceFormat.ResourceTypes
                             }
                         }
 
-                        return DDSImage.UncompressDXT5(Reader, Width, Height, yCoCg);
+                        Bitmap decompressed = DDSImage.UncompressDXT5(Reader, Width, Height, yCoCg);
+                        if (TrueHeight == Height) return decompressed;
+                        else return decompressed.Clone( new Rectangle(0, 0, Width, TrueHeight), decompressed.PixelFormat);
                     }
 
                     break;
@@ -257,6 +273,7 @@ namespace ValveResourceFormat.ResourceTypes
                 writer.WriteLine("{0,-12} = {1}", "VTEX Version", Version);
                 writer.WriteLine("{0,-12} = {1}", "Width", Width);
                 writer.WriteLine("{0,-12} = {1}", "Height", Height);
+                writer.WriteLine("{0,-12} = {1}", "TrueHeight", TrueHeight);
                 writer.WriteLine("{0,-12} = {1}", "Depth", Depth);
                 writer.WriteLine("{0,-12} = ( {1:F6}, {2:F6}, {3:F6}, {4:F6} )", "Reflectivity", Reflectivity[0], Reflectivity[1], Reflectivity[2], Reflectivity[3]);
                 writer.WriteLine("{0,-12} = {1}", "NumMipLevels", NumMipLevels);
